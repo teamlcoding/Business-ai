@@ -1,0 +1,6 @@
+{
+  "name": "BusinessOS AI",
+  "description": "Enterprise AI Business Operating System with POS, CRM, HR, Finance, Inventory, Projects & WhatsApp Automation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
