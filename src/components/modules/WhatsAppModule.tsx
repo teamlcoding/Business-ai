@@ -22,23 +22,45 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ isDarkMode }) =>
     { id: 3, phone: '+91 99870 55667', template: 'Monthly Salary Slip', status: 'Delivered', time: 'Yesterday' }
   ]);
 
-  const handleSendTestMessage = () => {
-    const formattedText = selectedTemplate.bodyText
-      .replace('{{customer_name}}', simCustomerName)
-      .replace('{{amount}}', `₹${simAmount}`)
-      .replace('{{invoice_no}}', 'INV-2026-0891')
-      .replace('{{download_link}}', 'https://businessos.ai/inv/891')
-      .replace('{{company_name}}', 'Apex Global');
+  const handleSendTestMessage = async () => {
+    try {
+      const token = localStorage.getItem('businessos_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const newLog = {
-      id: Date.now(),
-      phone: simPhone,
-      template: selectedTemplate.name,
-      status: 'Sent',
-      time: 'Just now'
-    };
-    setLogs([newLog, ...logs]);
-    alert(`WhatsApp Message Triggered Successfully:\n\nTo: ${simPhone}\n\nContent: "${formattedText}"`);
+      const res = await fetch('/api/whatsapp/send-invoice', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          recipientPhone: simPhone,
+          recipientName: simCustomerName,
+          invoiceNumber: 'INV-2026-0891',
+          amount: simAmount.replace(/[^0-9]/g, ''),
+          pdfUrl: 'https://businessos.ai/documents/INV-2026-0891.pdf',
+          paymentLink: 'https://upi.businessos.ai/pay/INV-2026-0891',
+          type: selectedTemplate?.name?.toUpperCase().includes('REMINDER') ? 'PAYMENT_LINK' : 'INVOICE'
+        }),
+      });
+
+      const data = await res.json();
+
+      const newLog = {
+        id: Date.now(),
+        phone: simPhone,
+        template: selectedTemplate?.name || 'Notification',
+        status: data.webhookLog?.status || 'Delivered',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setLogs([newLog, ...logs]);
+
+      if (data.webhookLog?.waDeepLink) {
+        window.open(data.webhookLog.waDeepLink, '_blank');
+      } else {
+        alert(`WhatsApp Webhook Triggered Successfully to ${simPhone}!`);
+      }
+    } catch (err) {
+      console.error('Error dispatching test WhatsApp message:', err);
+    }
   };
 
   return (
@@ -121,7 +143,7 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ isDarkMode }) =>
               <div className="space-y-1">
                 <label className="text-neutral-400 font-semibold">Select WhatsApp Template</label>
                 <select
-                  value={selectedTemplate.id}
+                  value={selectedTemplate?.id || ''}
                   onChange={(e) => {
                     const found = templates.find(t => t.id === e.target.value);
                     if (found) setSelectedTemplate(found);
@@ -170,9 +192,9 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ isDarkMode }) =>
               <div className="space-y-2">
                 <span className="text-[10px] font-semibold text-green-400 uppercase tracking-wider">Live Preview</span>
                 <div className="p-3 bg-emerald-900/40 rounded-xl border border-emerald-500/30 text-xs text-emerald-100 leading-relaxed font-sans">
-                  {selectedTemplate.bodyText
-                    .replace('{{customer_name}}', simCustomerName)
-                    .replace('{{amount}}', `₹${simAmount}`)
+                  {(selectedTemplate?.bodyText || '')
+                    .replace('{{customer_name}}', simCustomerName || '')
+                    .replace('{{amount}}', `₹${simAmount || '0'}`)
                     .replace('{{invoice_no}}', 'INV-2026-0891')
                     .replace('{{download_link}}', 'https://businessos.ai/inv/891')
                     .replace('{{company_name}}', 'Apex Global')}

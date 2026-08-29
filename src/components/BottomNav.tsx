@@ -7,20 +7,24 @@ interface BottomNavProps {
   onSelectModule: (module: ModuleType) => void;
   onOpenMobileDrawer: () => void;
   isDarkMode: boolean;
+  activeRole?: string;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
   activeModule,
   onSelectModule,
   onOpenMobileDrawer,
-  isDarkMode
+  isDarkMode,
+  activeRole
 }) => {
-  const tabs = [
-    { id: 'dashboard' as ModuleType, label: 'Executive', icon: LayoutDashboard },
-    { id: 'pos' as ModuleType, label: 'Billing POS', icon: ShoppingCart },
-    { id: 'documents' as ModuleType, label: 'Docs/GST', icon: FileText },
-    { id: 'crm' as ModuleType, label: 'CRM Leads', icon: Users },
-  ];
+  const tabs = activeRole === 'Super Admin' 
+    ? [{ id: 'superadmin' as ModuleType, label: 'Super Admin HQ', icon: LayoutDashboard }]
+    : [
+        { id: 'dashboard' as ModuleType, label: 'Executive', icon: LayoutDashboard },
+        { id: 'pos' as ModuleType, label: 'Billing POS', icon: ShoppingCart },
+        { id: 'documents' as ModuleType, label: 'Docs/GST', icon: FileText },
+        { id: 'crm' as ModuleType, label: 'CRM Leads', icon: Users },
+      ];
 
   return (
     <nav className={`fixed bottom-0 left-0 right-0 z-40 md:hidden border-t px-2 py-1.5 transition-colors ${

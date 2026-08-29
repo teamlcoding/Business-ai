@@ -1,0 +1,153 @@
+{
+  "entities": {
+    "organization": {
+      "title": "Organization",
+      "description": "Multi-tenant business entity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200 },
+        "plan": { "type": "string", "enum": ["Free", "Starter", "Professional", "Enterprise", "Custom"] },
+        "businessType": { "type": "string", "maxLength": 100 },
+        "gstin": { "type": "string", "maxLength": 30 },
+        "companySize": { "type": "string", "maxLength": 50 },
+        "logoUrl": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "branch": {
+      "title": "Branch",
+      "description": "Branch office/location within an organization",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organization_id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200 },
+        "code": { "type": "string", "maxLength": 50 },
+        "address": { "type": "string", "maxLength": 500 },
+        "isMain": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "organization_id", "name"]
+    },
+    "user": {
+      "title": "User",
+      "description": "System user account bound to organization and branch",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organization_id": { "type": "string", "maxLength": 128 },
+        "branch_id": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 200 },
+        "username": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "maxLength": 20 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "organization_id", "username", "role"]
+    },
+    "customer": {
+      "title": "Customer",
+      "description": "CRM Customer record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organization_id": { "type": "string", "maxLength": 128 },
+        "branch_id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200 },
+        "email": { "type": "string", "maxLength": 200 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "company": { "type": "string", "maxLength": 200 },
+        "status": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "organization_id", "name"]
+    },
+    "product": {
+      "title": "Product",
+      "description": "Inventory product item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organization_id": { "type": "string", "maxLength": 128 },
+        "branch_id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200 },
+        "sku": { "type": "string", "maxLength": 100 },
+        "barcode": { "type": "string", "maxLength": 100 },
+        "price": { "type": "number" },
+        "stock": { "type": "number" },
+        "category": { "type": "string", "maxLength": 100 },
+        "gstRate": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "organization_id", "name", "price"]
+    },
+    "invoice": {
+      "title": "Invoice",
+      "description": "Billing document record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organization_id": { "type": "string", "maxLength": 128 },
+        "branch_id": { "type": "string", "maxLength": 128 },
+        "invoiceNumber": { "type": "string", "maxLength": 100 },
+        "customerId": { "type": "string", "maxLength": 128 },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "maxLength": 50 },
+        "date": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "organization_id", "invoiceNumber", "totalAmount"]
+    },
+    "employee": {
+      "title": "Employee",
+      "description": "HR Employee record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organization_id": { "type": "string", "maxLength": 128 },
+        "branch_id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200 },
+        "email": { "type": "string", "maxLength": 200 },
+        "department": { "type": "string", "maxLength": 100 },
+        "designation": { "type": "string", "maxLength": 100 },
+        "salary": { "type": "number" },
+        "status": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "organization_id", "name"]
+    }
+  },
+  "firestore": {
+    "/organizations/{orgId}": {
+      "schema": "organization",
+      "description": "Tenant organization collection"
+    },
+    "/organizations/{orgId}/branches/{branchId}": {
+      "schema": "branch",
+      "description": "Branches of the tenant"
+    },
+    "/organizations/{orgId}/users/{userId}": {
+      "schema": "user",
+      "description": "Users of the tenant"
+    },
+    "/organizations/{orgId}/customers/{customerId}": {
+      "schema": "customer",
+      "description": "Customers of the tenant"
+    },
+    "/organizations/{orgId}/products/{productId}": {
+      "schema": "product",
+      "description": "Products of the tenant"
+    },
+    "/organizations/{orgId}/invoices/{invoiceId}": {
+      "schema": "invoice",
+      "description": "Invoices of the tenant"
+    },
+    "/organizations/{orgId}/employees/{employeeId}": {
+      "schema": "employee",
+      "description": "Employees of the tenant"
+    }
+  }
+}

@@ -1,0 +1,117 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOrgMember(orgId) {
+      return isSignedIn() && isValidId(orgId);
+    }
+
+    // Validation functions
+    function isValidOrganization(data) {
+      return data.keys().hasAll(['id', 'name']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 200;
+    }
+
+    function isValidBranch(data) {
+      return data.keys().hasAll(['id', 'organization_id', 'name']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.organization_id is string && data.organization_id.size() <= 128 &&
+             data.name is string && data.name.size() <= 200;
+    }
+
+    function isValidCustomer(data) {
+      return data.keys().hasAll(['id', 'organization_id', 'name']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.organization_id is string && data.organization_id.size() <= 128 &&
+             data.name is string && data.name.size() <= 200;
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['id', 'organization_id', 'name', 'price']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.organization_id is string && data.organization_id.size() <= 128 &&
+             data.name is string && data.name.size() <= 200 &&
+             data.price is number;
+    }
+
+    function isValidInvoice(data) {
+      return data.keys().hasAll(['id', 'organization_id', 'invoiceNumber', 'totalAmount']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.organization_id is string && data.organization_id.size() <= 128 &&
+             data.invoiceNumber is string && data.invoiceNumber.size() <= 100 &&
+             data.totalAmount is number;
+    }
+
+    // Organization multi-tenant path hierarchy
+    match /organizations/{orgId} {
+      allow read: if isOrgMember(orgId);
+      allow create: if isSignedIn() && isValidId(orgId) && isValidOrganization(incoming());
+      allow update: if isOrgMember(orgId) && isValidOrganization(incoming());
+      allow delete: if false;
+
+      match /branches/{branchId} {
+        allow read: if isOrgMember(orgId) && isValidId(branchId);
+        allow create: if isOrgMember(orgId) && isValidId(branchId) && isValidBranch(incoming());
+        allow update: if isOrgMember(orgId) && isValidId(branchId) && isValidBranch(incoming());
+        allow delete: if isOrgMember(orgId) && isValidId(branchId);
+      }
+
+      match /users/{userId} {
+        allow read: if isOrgMember(orgId) && isValidId(userId);
+        allow create, update: if isOrgMember(orgId) && isValidId(userId);
+        allow delete: if isOrgMember(orgId) && isValidId(userId);
+      }
+
+      match /customers/{customerId} {
+        allow read: if isOrgMember(orgId) && isValidId(customerId);
+        allow create: if isOrgMember(orgId) && isValidId(customerId) && isValidCustomer(incoming());
+        allow update: if isOrgMember(orgId) && isValidId(customerId) && isValidCustomer(incoming());
+        allow delete: if isOrgMember(orgId) && isValidId(customerId);
+      }
+
+      match /products/{productId} {
+        allow read: if isOrgMember(orgId) && isValidId(productId);
+        allow create: if isOrgMember(orgId) && isValidId(productId) && isValidProduct(incoming());
+        allow update: if isOrgMember(orgId) && isValidId(productId) && isValidProduct(incoming());
+        allow delete: if isOrgMember(orgId) && isValidId(productId);
+      }
+
+      match /invoices/{invoiceId} {
+        allow read: if isOrgMember(orgId) && isValidId(invoiceId);
+        allow create: if isOrgMember(orgId) && isValidId(invoiceId) && isValidInvoice(incoming());
+        allow update: if isOrgMember(orgId) && isValidId(invoiceId) && isValidInvoice(incoming());
+        allow delete: if isOrgMember(orgId) && isValidId(invoiceId);
+      }
+
+      match /employees/{employeeId} {
+        allow read: if isOrgMember(orgId) && isValidId(employeeId);
+        allow create, update: if isOrgMember(orgId) && isValidId(employeeId);
+        allow delete: if isOrgMember(orgId) && isValidId(employeeId);
+      }
+    }
+  }
+}

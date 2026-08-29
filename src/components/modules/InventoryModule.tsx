@@ -94,7 +94,7 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ currentOrg, is
 
   const handleStockTransfer = (e: React.FormEvent) => {
     e.preventDefault();
-    alert(`Stock Transfer Triggered: ${transferQty} x ${selectedProduct.name} transferred from ${fromWarehouse} to ${toWarehouse}.`);
+    alert(`Stock Transfer Triggered: ${transferQty} x ${selectedProduct?.name || 'Product'} transferred from ${fromWarehouse} to ${toWarehouse}.`);
     setShowTransferModal(false);
   };
 
@@ -235,7 +235,7 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ currentOrg, is
               <div className="space-y-1">
                 <label className="font-semibold text-neutral-400">Select Item</label>
                 <select
-                  value={selectedProduct.id}
+                  value={selectedProduct?.id || ''}
                   onChange={(e) => {
                     const found = products.find(p => p.id === e.target.value);
                     if (found) setSelectedProduct(found);

@@ -18,6 +18,7 @@ import {
   LogOut,
   ExternalLink,
   Copy,
+  Lock,
   X
 } from 'lucide-react';
 import { Organization, Branch, UserRole, BusinessType, CompanySize, AuthState } from '../types';
@@ -143,49 +144,30 @@ export const Header: React.FC<HeaderProps> = ({
 
           <div className="h-5 w-px bg-neutral-700/30 hidden md:block"></div>
 
-          {/* Organization Switcher Dropdown */}
+          {/* Organization Indicator */}
           <div className="relative hidden md:block">
-            <button
-              onClick={() => {
-                setShowOrgDropdown(!showOrgDropdown);
-                setShowBranchDropdown(false);
-                setShowRoleDropdown(false);
-                setShowTypeDropdown(false);
-              }}
-              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+            {activeRole === 'Super Admin' ? (
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold ${
                 isDarkMode 
-                  ? 'bg-neutral-900 border-neutral-800 hover:border-neutral-700 text-neutral-200' 
-                  : 'bg-neutral-100 border-neutral-200 hover:border-neutral-300 text-neutral-800'
-              }`}
-            >
-              <Building2 className="w-3.5 h-3.5 text-blue-500" />
-              <span className="max-w-[120px] truncate">{currentOrg.name}</span>
-              <ChevronDown className="w-3 h-3 text-neutral-400" />
-            </button>
-
-            {showOrgDropdown && (
-              <div className={`absolute left-0 mt-2 w-64 rounded-xl border shadow-xl py-2 z-50 ${
-                isDarkMode ? 'bg-neutral-900 border-neutral-800 text-neutral-200' : 'bg-white border-neutral-200 text-neutral-800'
+                  ? 'bg-blue-600/15 border-blue-500/30 text-blue-300' 
+                  : 'bg-blue-50 border-blue-200 text-blue-800'
               }`}>
-                <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Select Organization</div>
-                {organizations.map(org => (
-                  <button
-                    key={org.id}
-                    onClick={() => {
-                      onSelectOrg(org);
-                      setShowOrgDropdown(false);
-                    }}
-                    className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-blue-500/10 transition-colors ${
-                      org.id === currentOrg.id ? 'font-semibold text-blue-500' : ''
-                    }`}
-                  >
-                    <div>
-                      <div>{org.name}</div>
-                      <div className="text-[10px] text-neutral-400">GSTIN: {org.gstin}</div>
-                    </div>
-                    {org.id === currentOrg.id && <Check className="w-3.5 h-3.5 text-blue-500" />}
-                  </button>
-                ))}
+                <Building2 className="w-3.5 h-3.5 text-blue-400" />
+                <span className="font-bold">BusinessOS AI Platform</span>
+                <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 text-[10px] font-mono font-bold">
+                  Platform Owner
+                </span>
+              </div>
+            ) : (
+              <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs font-medium ${
+                isDarkMode ? 'bg-neutral-900/60 border-neutral-800 text-neutral-200' : 'bg-neutral-100/60 border-neutral-200 text-neutral-800'
+              }`}>
+                <Building2 className="w-3.5 h-3.5 text-blue-500" />
+                <span className="max-w-[150px] truncate font-bold">{currentOrg?.name || 'Organization'}</span>
+                <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                  AES-256 Encrypted
+                </span>
               </div>
             )}
           </div>
@@ -206,7 +188,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <GitBranch className="w-3.5 h-3.5 text-emerald-500" />
-              <span className="max-w-[110px] truncate">{currentBranch.name}</span>
+              <span className="max-w-[110px] truncate">{currentBranch?.name || 'Main Branch'}</span>
               <ChevronDown className="w-3 h-3 text-neutral-400" />
             </button>
 
@@ -223,11 +205,11 @@ export const Header: React.FC<HeaderProps> = ({
                       setShowBranchDropdown(false);
                     }}
                     className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-emerald-500/10 transition-colors ${
-                      b.id === currentBranch.id ? 'font-semibold text-emerald-500' : ''
+                      b.id === currentBranch?.id ? 'font-semibold text-emerald-500' : ''
                     }`}
                   >
                     <span>{b.name} ({b.city})</span>
-                    {b.id === currentBranch.id && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+                    {b.id === currentBranch?.id && <Check className="w-3.5 h-3.5 text-emerald-500" />}
                   </button>
                 ))}
               </div>
@@ -261,46 +243,64 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Right: Role, Business Type, Plan & Utilities */}
         <div className="flex items-center gap-2">
           
-          {/* Business Type Selector */}
+          {/* Business Type Indicator (Locked for Tenants / Customers) */}
           <div className="relative hidden xl:block">
-            <button
-              onClick={() => {
-                setShowTypeDropdown(!showTypeDropdown);
-                setShowRoleDropdown(false);
-                setShowOrgDropdown(false);
-                setShowBranchDropdown(false);
-              }}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                isDarkMode 
-                  ? 'bg-neutral-900 border-neutral-800 text-neutral-300' 
-                  : 'bg-neutral-100 border-neutral-200 text-neutral-700'
-              }`}
-            >
-              <Briefcase className="w-3.5 h-3.5 text-purple-400" />
-              <span>{businessType}</span>
-              <ChevronDown className="w-3 h-3 text-neutral-400" />
-            </button>
+            {activeRole === 'Super Admin' ? (
+              <>
+                <button
+                  onClick={() => {
+                    setShowTypeDropdown(!showTypeDropdown);
+                    setShowRoleDropdown(false);
+                    setShowOrgDropdown(false);
+                    setShowBranchDropdown(false);
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                    isDarkMode 
+                      ? 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:border-neutral-700' 
+                      : 'bg-neutral-100 border-neutral-200 text-neutral-700 hover:border-neutral-300'
+                  }`}
+                  title="Super Admin: Override Business Vertical"
+                >
+                  <Briefcase className="w-3.5 h-3.5 text-purple-400" />
+                  <span>{businessType}</span>
+                  <ChevronDown className="w-3 h-3 text-neutral-400" />
+                </button>
 
-            {showTypeDropdown && (
-              <div className={`absolute right-0 mt-2 w-52 rounded-xl border shadow-xl py-2 z-50 ${
-                isDarkMode ? 'bg-neutral-900 border-neutral-800 text-neutral-200' : 'bg-white border-neutral-200 text-neutral-800'
-              }`}>
-                <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Business Vertical</div>
-                {BUSINESS_TYPES.map(bt => (
-                  <button
-                    key={bt}
-                    onClick={() => {
-                      onChangeBusinessType(bt);
-                      setShowTypeDropdown(false);
-                    }}
-                    className={`w-full px-3 py-1.5 text-left text-xs flex items-center justify-between hover:bg-purple-500/10 transition-colors ${
-                      bt === businessType ? 'font-semibold text-purple-400' : ''
-                    }`}
-                  >
-                    <span>{bt}</span>
-                    {bt === businessType && <Check className="w-3.5 h-3.5 text-purple-400" />}
-                  </button>
-                ))}
+                {showTypeDropdown && (
+                  <div className={`absolute right-0 mt-2 w-52 rounded-xl border shadow-xl py-2 z-50 ${
+                    isDarkMode ? 'bg-neutral-900 border-neutral-800 text-neutral-200' : 'bg-white border-neutral-200 text-neutral-800'
+                  }`}>
+                    <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Business Vertical</div>
+                    {BUSINESS_TYPES.map(bt => (
+                      <button
+                        key={bt}
+                        onClick={() => {
+                          onChangeBusinessType(bt);
+                          setShowTypeDropdown(false);
+                        }}
+                        className={`w-full px-3 py-1.5 text-left text-xs flex items-center justify-between hover:bg-purple-500/10 transition-colors ${
+                          bt === businessType ? 'font-semibold text-purple-400' : ''
+                        }`}
+                      >
+                        <span>{bt}</span>
+                        {bt === businessType && <Check className="w-3.5 h-3.5 text-purple-400" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold ${
+                  isDarkMode 
+                    ? 'bg-neutral-900/90 border-neutral-800 text-neutral-300' 
+                    : 'bg-neutral-100/90 border-neutral-200 text-neutral-700'
+                }`}
+                title="Business Vertical is locked to your organization profile"
+              >
+                <Briefcase className="w-3.5 h-3.5 text-purple-400" />
+                <span>{businessType}</span>
+                <Lock className="w-3 h-3 text-amber-400 shrink-0" />
               </div>
             )}
           </div>
@@ -352,48 +352,16 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
 
-          {/* User Role Switcher Dropdown */}
+          {/* User Role Badge */}
           <div className="relative">
-            <button
-              onClick={() => {
-                setShowRoleDropdown(!showRoleDropdown);
-                setShowOrgDropdown(false);
-                setShowBranchDropdown(false);
-                setShowTypeDropdown(false);
-              }}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                isDarkMode 
-                  ? 'bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20' 
-                  : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
-              }`}
-            >
-              <UserCheck className="w-3.5 h-3.5" />
+            <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold ${
+              isDarkMode 
+                ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' 
+                : 'bg-blue-50 border-blue-200 text-blue-700'
+            }`}>
+              <UserCheck className="w-3.5 h-3.5 text-blue-400" />
               <span className="hidden sm:inline">{activeRole}</span>
-              <ChevronDown className="w-3 h-3 text-blue-400" />
-            </button>
-
-            {showRoleDropdown && (
-              <div className={`absolute right-0 mt-2 w-48 rounded-xl border shadow-xl py-2 z-50 ${
-                isDarkMode ? 'bg-neutral-900 border-neutral-800 text-neutral-200' : 'bg-white border-neutral-200 text-neutral-800'
-              }`}>
-                <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Switch User Role</div>
-                {ROLES.map(role => (
-                  <button
-                    key={role}
-                    onClick={() => {
-                      onSelectRole(role);
-                      setShowRoleDropdown(false);
-                    }}
-                    className={`w-full px-3 py-1.5 text-left text-xs flex items-center justify-between hover:bg-blue-500/10 transition-colors ${
-                      role === activeRole ? 'font-semibold text-blue-400' : ''
-                    }`}
-                  >
-                    <span>{role}</span>
-                    {role === activeRole && <Check className="w-3.5 h-3.5 text-blue-400" />}
-                  </button>
-                ))}
-              </div>
-            )}
+            </div>
           </div>
 
           {/* Plan Badge Upgrade Trigger */}
@@ -402,7 +370,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 text-amber-400 text-xs font-medium hover:brightness-110 transition-all"
           >
             <Zap className="w-3 h-3 text-amber-400" />
-            <span>{currentOrg.plan}</span>
+            <span>{currentOrg?.plan || 'Free'}</span>
           </button>
 
           {/* Home / Landing Page Nav Button */}

@@ -4,6 +4,7 @@ import {
   ShoppingCart, 
   FileText, 
   MessageSquare, 
+  Mail,
   Users, 
   UserCheck, 
   Package, 
@@ -15,9 +16,11 @@ import {
   Sparkles,
   ShieldCheck,
   Zap,
-  Lock
+  Lock,
+  Calculator
 } from 'lucide-react';
 import { ModuleType, BusinessType, UserRole, PlanType } from '../types';
+import { isPaidModule } from '../utils/permissions';
 
 interface SidebarProps {
   activeModule: ModuleType;
@@ -41,9 +44,11 @@ interface NavItem {
 const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'superadmin', label: 'Super Admin HQ', icon: ShieldCheck, badge: 'Master', badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/20', allowedRoles: ['Super Admin'] },
   { id: 'dashboard', label: 'Executive Dashboard', icon: LayoutDashboard },
+  { id: 'ca', label: 'CA Practice Hub', icon: Calculator, badge: 'Tax & GST', badgeColor: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20', allowedRoles: ['Super Admin', 'Business Owner', 'Accountant', 'CA'] },
   { id: 'pos', label: 'Billing & POS', icon: ShoppingCart, badge: 'Fast', badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', allowedRoles: ['Super Admin', 'Business Owner', 'Branch Manager', 'Sales', 'Inventory Manager'] },
-  { id: 'documents', label: 'Documents & GST', icon: FileText, allowedRoles: ['Super Admin', 'Business Owner', 'Branch Manager', 'Accountant', 'Sales', 'Customer Portal', 'Vendor Portal'] },
+  { id: 'documents', label: 'Documents & GST', icon: FileText, allowedRoles: ['Super Admin', 'Business Owner', 'Branch Manager', 'Accountant', 'Sales', 'CA', 'Customer Portal', 'Vendor Portal'] },
   { id: 'whatsapp', label: 'WhatsApp Hub', icon: MessageSquare, badge: 'Share', badgeColor: 'bg-green-500/10 text-green-400 border-green-500/20', allowedRoles: ['Super Admin', 'Business Owner', 'Branch Manager', 'Sales', 'Customer Portal'] },
+  { id: 'gmail', label: 'Gmail Workspace', icon: Mail, badge: 'OAuth', badgeColor: 'bg-rose-500/10 text-rose-400 border-rose-500/20', allowedRoles: ['Super Admin', 'Business Owner', 'Branch Manager', 'Accountant', 'Sales', 'CA'] },
   { id: 'crm', label: 'CRM & Leads', icon: Users, allowedRoles: ['Super Admin', 'Business Owner', 'Branch Manager', 'Sales'] },
   { id: 'hr', label: 'HR & Payroll', icon: UserCheck, badge: 'AI Resume', badgeColor: 'bg-purple-500/10 text-purple-400 border-purple-500/20', allowedRoles: ['Super Admin', 'Business Owner', 'HR', 'Employee'] },
   { id: 'inventory', label: 'Inventory & Stock', icon: Package, allowedRoles: ['Super Admin', 'Business Owner', 'Branch Manager', 'Inventory Manager', 'Vendor Portal'] },
@@ -65,7 +70,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   // Filter navigation items dynamically based on Role
   const filteredNavItems = ALL_NAV_ITEMS.filter(item => {
-    if (activeRole === 'Super Admin') return true; // Super Admin sees all modules
+    if (activeRole === 'Super Admin') {
+      return item.id === 'superadmin';
+    }
+    if (item.id === 'superadmin') return false;
     if (!item.allowedRoles) return true;
     return item.allowedRoles.includes(activeRole as UserRole);
   });
@@ -111,6 +119,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {filteredNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeModule === item.id;
+            const requiresPaid = plan === 'Free' && isPaidModule(item.id) && activeRole !== 'Super Admin';
+
             return (
               <button
                 key={item.id}
@@ -129,11 +139,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <Icon className={`w-4 h-4 ${isActive ? 'text-blue-500' : 'text-neutral-400'}`} />
                   <span>{item.label}</span>
                 </div>
-                {item.badge && (
-                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold border ${item.badgeColor}`}>
-                    {item.badge}
-                  </span>
-                )}
+                <div className="flex items-center gap-1">
+                  {requiresPaid && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                      <Lock className="w-2.5 h-2.5" /> PRO
+                    </span>
+                  )}
+                  {item.badge && !requiresPaid && (
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold border ${item.badgeColor}`}>
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
               </button>
             );
           })}

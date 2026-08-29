@@ -41,6 +41,9 @@ export const organizations = pgTable('organizations', {
   status: text('status').default('Active'), // Active, Pending Approval, Suspended, Rejected
   assignedStorageMb: integer('assigned_storage_mb').default(5000),
   assignedModulesJson: text('assigned_modules_json'),
+  internalNotes: text('internal_notes'),
+  verificationStatus: text('verification_status').default('Verified'),
+  planExpiry: text('plan_expiry'),
   createdAt: timestamp('created_at').defaultNow(),
 });
 
@@ -261,10 +264,14 @@ export const documents = pgTable('documents', {
   docNumber: text('doc_number').notNull(),
   type: text('type').notNull(),
   clientName: text('client_name').notNull(),
-  amount: integer('amount').notNull(),
+  amount: integer('amount').default(0),
   date: text('date').notNull(),
   status: text('status').notNull(),
   itemsCount: integer('items_count').default(1),
+  fileName: text('file_name'),
+  fileType: text('file_type'),
+  fileSize: integer('file_size'),
+  fileDataUrl: text('file_data_url'),
   created_by: text('created_by'),
   updated_by: text('updated_by'),
   createdAt: timestamp('created_at').defaultNow(),
@@ -326,20 +333,173 @@ export const audit_logs = pgTable('audit_logs', {
 
 // 21. Dynamic Pricing Plans Table
 export const plans = pgTable('plans', {
-  id: text('id').primaryKey(), // free, starter, growth, business, enterprise
+  id: text('id').primaryKey(), // free, starter, growth, business, enterprise, custom
   name: text('name').notNull(),
   priceMonthly: integer('price_monthly').notNull().default(0),
   priceYearly: integer('price_yearly').notNull().default(0),
+  billingCycle: text('billing_cycle').default('Monthly'), // Monthly, Yearly
   description: text('description').notNull(),
   featuresJson: text('features_json').notNull(),
+  enabledModulesJson: text('enabled_modules_json'),
+  userLimit: integer('user_limit').default(5),
+  branchLimit: integer('branch_limit').default(1),
+  storageLimitMb: integer('storage_limit_mb').default(5000),
+  aiUsageLimit: text('ai_usage_limit').default('1000 credits/mo'),
+  caServiceIncluded: boolean('ca_service_included').default(false),
   isPopular: boolean('is_popular').default(false),
   buttonText: text('button_text').default('Choose Plan'),
   isActive: boolean('is_active').default(true),
 });
 
-// 22. Dynamic Landing Page Settings Table
+// 22. Dynamic Landing Page / System Settings Table
 export const landing_settings = pgTable('landing_settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
 });
+
+// 23. CA Service Packages Table (Super Admin managed)
+export const ca_packages = pgTable('ca_packages', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description').notNull(),
+  priceMonthly: integer('price_monthly').notNull().default(0),
+  priceYearly: integer('price_yearly').notNull().default(0),
+  includedServicesJson: text('included_services_json').notNull(),
+  assignedCaName: text('assigned_ca_name'),
+  assignedCaPhone: text('assigned_ca_phone'),
+  assignedCaEmail: text('assigned_ca_email'),
+  status: text('status').default('Active'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// 24. CA Service Requests Table (Client requests -> Super Admin approval & assignment)
+export const ca_requests = pgTable('ca_requests', {
+  id: text('id').primaryKey(),
+  organization_id: text('organization_id').notNull(),
+  packageId: text('package_id').notNull(),
+  packageName: text('package_name').notNull(),
+  clientName: text('client_name').notNull(),
+  clientPhone: text('client_phone').notNull(),
+  clientEmail: text('client_email').notNull(),
+  status: text('status').default('Pending'), // Pending, Assigned, Approved, In Progress, Completed, Rejected
+  assignedCaName: text('assigned_ca_name'),
+  assignedCaEmail: text('assigned_ca_email'),
+  assignedCaPhone: text('assigned_ca_phone'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// 25. Organization Workspace Configurations Table (Dynamic Workspace Customizer & Wizard)
+export const workspace_configs = pgTable('workspace_configs', {
+  id: text('id').primaryKey(), // e.g. WSC-ORG-1001
+  organization_id: text('organization_id').notNull().unique(),
+  businessType: text('business_type').notNull(),
+  companySize: text('company_size').default('Medium'),
+  themeColor: text('theme_color').default('#2563eb'),
+  wizardCompleted: boolean('wizard_completed').default(false),
+  enabledModulesJson: text('enabled_modules_json'),
+  sidebarConfigJson: text('sidebar_config_json'), // custom order, custom labels, hidden items, custom sections
+  customFieldsJson: text('custom_fields_json'), // custom fields per module
+  customStatusesJson: text('custom_statuses_json'), // custom status workflows per module
+  customWidgetsJson: text('custom_widgets_json'), // dashboard layout & active widgets
+  approvalWorkflowsJson: text('approval_workflows_json'),
+  documentTemplatesJson: text('document_templates_json'),
+  taxSettingsJson: text('tax_settings_json'),
+  notificationRulesJson: text('notification_rules_json'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// 26. Sub-Workspaces Table (Branch / Department / Site / Practice Area Workspaces)
+export const organization_workspaces = pgTable('organization_workspaces', {
+  id: text('id').primaryKey(), // e.g. WS-101
+  organization_id: text('organization_id').notNull(),
+  branch_id: text('branch_id'),
+  name: text('name').notNull(), // e.g. "Mumbai Branch", "CA Tax Practice", "Construction Site A"
+  type: text('type').default('Department'), // Branch, Department, Project Site, Practice Area, Custom
+  description: text('description'),
+  membersJson: text('members_json'), // Array of user IDs assigned to this workspace
+  enabledModulesJson: text('enabled_modules_json'), // Workspace specific modules
+  status: text('status').default('Active'),
+  created_by: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// 27. Industry Templates Engine Table (Super Admin Configurable Templates)
+export const industry_templates = pgTable('industry_templates', {
+  id: text('id').primaryKey(), // retail, restaurant, ca_firm, hospital, it_company, construction, real_estate, custom
+  name: text('name').notNull(),
+  description: text('description').notNull(),
+  defaultModulesJson: text('default_modules_json').notNull(),
+  dashboardWidgetsJson: text('dashboard_widgets_json').notNull(),
+  terminologyJson: text('terminology_json').notNull(), // { clientLabel: 'Patient', productLabel: 'Medicine', etc }
+  quickActionsJson: text('quick_actions_json').notNull(),
+  helpdeskCategoriesJson: text('helpdesk_categories_json').notNull(),
+  documentTypesJson: text('document_types_json').notNull(),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// 28. Helpdesk Tickets Table (Industry-Aware Support & Ticket Engine)
+export const helpdesk_tickets = pgTable('helpdesk_tickets', {
+  id: text('id').primaryKey(),
+  organization_id: text('organization_id').notNull(),
+  branch_id: text('branch_id'),
+  workspace_id: text('workspace_id'),
+  ticketNumber: text('ticket_number').notNull(),
+  category: text('category').notNull(), // Industry specific e.g. Billing, GST Filing, Food Order, Bug
+  subject: text('subject').notNull(),
+  description: text('description').notNull(),
+  priority: text('priority').default('Medium'), // Low, Medium, High, Urgent
+  status: text('status').default('Open'), // Open, In Progress, Pending Customer, Resolved, Closed
+  createdByName: text('created_by_name').notNull(),
+  createdByEmail: text('created_by_email'),
+  assignedTo: text('assigned_to'),
+  slaHours: integer('sla_hours').default(24),
+  resolutionNotes: text('resolution_notes'),
+  customFieldsJson: text('custom_fields_json'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// 29. System Communication Settings Table (Official WhatsApp & Communication Config)
+export const communication_settings = pgTable('communication_settings', {
+  id: text('id').primaryKey().default('global'),
+  officialWhatsappNumber: text('official_whatsapp_number').default('+91 9028310199'),
+  supportEmail: text('support_email').default('team.lcoding@gmail.com'),
+  salesPhone: text('sales_phone').default('+91 9028310199'),
+  autoSharePdfOnWhatsapp: boolean('auto_share_pdf_on_whatsapp').default(true),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// 30. CA Shared Documents & File Exchange Table
+export const ca_documents = pgTable('ca_documents', {
+  id: text('id').primaryKey(),
+  organization_id: text('organization_id').notNull(),
+  clientName: text('client_name').notNull(),
+  documentName: text('document_name').notNull(),
+  category: text('category').notNull(), // Audit Report, GST Receipt, ITR Computation, Tax Notice Reply, Financial Statement, Client File
+  fileUrl: text('file_url').notNull(),
+  fileSize: text('file_size').default('1.2 MB'),
+  uploadedByRole: text('uploaded_by_role').notNull(), // 'CA' or 'Client' or 'Super Admin'
+  uploadedByName: text('uploaded_by_name').notNull(),
+  status: text('status').default('Shared'), // Shared, Pending Review, Approved
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// 31. Emergency Support Access Logs Table
+export const support_access_logs = pgTable('support_access_logs', {
+  id: text('id').primaryKey(),
+  superAdminEmail: text('super_admin_email').notNull(),
+  targetOrgId: text('target_org_id').notNull(),
+  targetOrgName: text('target_org_name').notNull(),
+  reason: text('reason').notNull(),
+  authorizationCode: text('authorization_code').notNull(),
+  durationHours: integer('duration_hours').default(24),
+  status: text('status').default('Active'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+
 

@@ -38,7 +38,7 @@ const PLANS: { name: PlanType; price: string; description: string; features: str
   },
   {
     name: 'Enterprise',
-    price: 'Custom',
+    price: 'Contact Sales',
     description: 'Full custom microservice readiness & SLA guarantee',
     features: ['Unlimited Multi-Tenancy', 'Custom Gemini AI Models & Live Voice API', 'Dedicated Account Manager', 'Custom REST & Webhook Integrations', '99.99% Uptime Guarantee']
   }
@@ -52,6 +52,43 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
   isDarkMode
 }) => {
   if (!isOpen) return null;
+
+  const handleSelectPlan = async (plan: PlanType) => {
+    if (plan === 'Free') {
+      onUpgradePlan('Free');
+      onClose();
+      return;
+    }
+
+    // Paid Plan: Create registration request in PostgreSQL as 'Pending Approval' and trigger WhatsApp
+    try {
+      const res = await fetch('/api/subscriptions/request-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          organizationName: currentOrg?.name || 'My Enterprise',
+          ownerName: 'Business Owner',
+          phone: '+91 9028310199',
+          businessType: currentOrg?.businessType || 'Retail',
+          selectedPlan: plan,
+          requirements: `Subscription Plan Upgrade to ${plan} (Pending Super Admin Approval)`,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.whatsappUrl) {
+          window.open(data.whatsappUrl, '_blank');
+        }
+        alert(`Your request for the ${plan} Plan has been submitted to Super Admin for approval.`);
+      }
+    } catch (err) {
+      console.error('Error submitting plan request:', err);
+    }
+
+    onUpgradePlan(plan);
+    onClose();
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fadeIn">
@@ -67,7 +104,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold">BusinessOS Membership Plans</h2>
-              <p className="text-xs text-neutral-400">Current Active Plan for {currentOrg.name}: <span className="font-semibold text-amber-400">{currentOrg.plan}</span></p>
+              <p className="text-xs text-neutral-400">Current Active Plan for {currentOrg?.name || 'Organization'}: <span className="font-semibold text-amber-400">{currentOrg?.plan || 'Free'}</span></p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg text-neutral-400 hover:text-neutral-200">
@@ -78,7 +115,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
         {/* Plans Grid */}
         <div className="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
           {PLANS.map((plan) => {
-            const isCurrent = currentOrg.plan === plan.name;
+            const isCurrent = currentOrg?.plan === plan.name;
             return (
               <div
                 key={plan.name}
@@ -111,10 +148,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
 
                 <div className="pt-5">
                   <button
-                    onClick={() => {
-                      onUpgradePlan(plan.name);
-                      onClose();
-                    }}
+                    onClick={() => handleSelectPlan(plan.name)}
                     disabled={isCurrent}
                     className={`w-full py-2 rounded-xl text-xs font-semibold transition-all ${
                       isCurrent 

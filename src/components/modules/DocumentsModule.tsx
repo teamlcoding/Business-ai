@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { DocumentRecord, Customer, Organization } from '../../types';
 import { mockDocuments, mockCustomers } from '../../data/mockData';
+import { downloadPDF, sharePDFWhatsApp } from '../../utils/pdfGenerator';
 
 interface DocumentsModuleProps {
   currentOrg?: Organization;
@@ -49,35 +50,65 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ currentOrg, is
   const [docAmount, setDocAmount] = useState(45000);
   const [previewDoc, setPreviewDoc] = useState<DocumentRecord | null>(null);
 
-  const loadInvoices = () => {
+  // File Upload Attachment State
+  const [uploadedFile, setUploadedFile] = useState<{ name: string; type: string; size: number; dataUrl: string } | null>(null);
+
+  const loadDocuments = () => {
     if (!currentOrg?.id) return;
     const token = localStorage.getItem('businessos_token');
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    fetch(`/api/tenant/invoices?organization_id=${currentOrg.id}`, { headers })
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
-          const mapped: DocumentRecord[] = data.map((inv: any) => ({
-            id: inv.id,
-            docNumber: inv.docNumber || inv.doc_number || inv.invoice_number || 'INV-001',
-            type: inv.type || 'GST Invoice',
-            clientName: inv.clientName || inv.client_name || inv.customer_name || 'Client',
-            amount: Number(inv.amount || inv.total_amount || 0),
-            date: inv.date || inv.invoice_date || '2026-08-01',
-            status: (inv.status === 'Paid' || inv.payment_status === 'Paid') ? 'Paid' : 'Sent',
-            itemsCount: Number(inv.itemsCount || inv.items_count || 1),
-            pdfUrl: '#'
-          }));
-          setDocuments(mapped);
-        }
-      })
-      .catch(err => console.error('Error fetching tenant invoices:', err));
+    Promise.all([
+      fetch(`/api/tenant/documents?organization_id=${currentOrg.id}`, { headers }).then(res => res.ok ? res.json() : []),
+      fetch(`/api/tenant/invoices?organization_id=${currentOrg.id}`, { headers }).then(res => res.ok ? res.json() : [])
+    ]).then(([dbDocs, dbInvoices]) => {
+      const docsList: DocumentRecord[] = [];
+
+      if (Array.isArray(dbDocs)) {
+        dbDocs.forEach((d: any) => {
+          docsList.push({
+            id: d.id,
+            docNumber: d.docNumber || d.doc_number || `DOC-${d.id}`,
+            type: d.type || 'Document',
+            clientName: d.clientName || d.client_name || 'Client',
+            amount: Number(d.amount || 0),
+            date: d.date || new Date().toISOString().split('T')[0],
+            status: d.status || 'Active',
+            itemsCount: Number(d.itemsCount || 1),
+            fileName: d.fileName || d.file_name,
+            fileType: d.fileType || d.file_type,
+            fileSize: d.fileSize || d.file_size,
+            fileDataUrl: d.fileDataUrl || d.file_data_url,
+          });
+        });
+      }
+
+      if (Array.isArray(dbInvoices)) {
+        dbInvoices.forEach((inv: any) => {
+          if (!docsList.some(existing => existing.id === inv.id || existing.docNumber === inv.docNumber)) {
+            docsList.push({
+              id: inv.id,
+              docNumber: inv.docNumber || inv.doc_number || inv.invoice_number || 'INV-001',
+              type: inv.type || 'GST Invoice',
+              clientName: inv.clientName || inv.client_name || inv.customer_name || 'Client',
+              amount: Number(inv.amount || inv.total_amount || 0),
+              date: inv.date || inv.invoice_date || '2026-08-01',
+              status: (inv.status === 'Paid' || inv.payment_status === 'Paid') ? 'Paid' : 'Sent',
+              itemsCount: Number(inv.itemsCount || inv.items_count || 1),
+            });
+          }
+        });
+      }
+
+      if (docsList.length > 0) {
+        setDocuments(docsList);
+      }
+    }).catch(err => console.error('Error loading documents:', err));
   };
 
   useEffect(() => {
-    loadInvoices();
+    loadDocuments();
   }, [currentOrg?.id]);
 
   // WhatsApp Drawer State
@@ -91,21 +122,93 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ currentOrg, is
     return matchesSearch && matchesType;
   });
 
-  const handleCreateDocument = (e: React.FormEvent) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setUploadedFile({
+        name: file.name,
+        type: file.type || 'application/pdf',
+        size: file.size,
+        dataUrl: reader.result as string,
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCreateDocument = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newDoc: DocumentRecord = {
+    const docNum = `${builderDocType.slice(0,3).toUpperCase()}-2026-${Math.floor(100 + Math.random() * 900)}`;
+
+    const payload = {
       id: `doc-${Date.now()}`,
-      docNumber: `${builderDocType.slice(0,3).toUpperCase()}-2026-${Math.floor(100 + Math.random() * 900)}`,
-      type: builderDocType as any,
+      organization_id: currentOrg?.id || 'org-101',
+      docNumber: docNum,
+      type: builderDocType,
       clientName,
       amount: docAmount,
       date: new Date().toISOString().split('T')[0],
       status: 'Sent',
-      itemsCount: 3
+      itemsCount: 1,
+      fileName: uploadedFile?.name || null,
+      fileType: uploadedFile?.type || null,
+      fileSize: uploadedFile?.size || 0,
+      fileDataUrl: uploadedFile?.dataUrl || null,
     };
-    setDocuments([newDoc, ...documents]);
-    setShowBuilder(false);
-    setPreviewDoc(newDoc);
+
+    try {
+      const token = localStorage.getItem('businessos_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/tenant/documents', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const savedDoc = await res.json();
+        const newDocRecord: DocumentRecord = {
+          id: savedDoc.id,
+          docNumber: savedDoc.docNumber || docNum,
+          type: savedDoc.type || builderDocType as any,
+          clientName: savedDoc.clientName || clientName,
+          amount: Number(savedDoc.amount || docAmount),
+          date: savedDoc.date || new Date().toISOString().split('T')[0],
+          status: savedDoc.status || 'Sent',
+          itemsCount: Number(savedDoc.itemsCount || 1),
+          fileName: savedDoc.fileName,
+          fileType: savedDoc.fileType,
+          fileSize: savedDoc.fileSize,
+          fileDataUrl: savedDoc.fileDataUrl,
+        };
+        setDocuments([newDocRecord, ...documents]);
+        setShowBuilder(false);
+        setUploadedFile(null);
+        setPreviewDoc(newDocRecord);
+      } else {
+        alert('Error saving document to database.');
+      }
+    } catch (err: any) {
+      console.error('Document save error:', err);
+      // Fallback local addition
+      const fallbackDoc: DocumentRecord = {
+        id: payload.id,
+        docNumber: docNum,
+        type: builderDocType as any,
+        clientName,
+        amount: docAmount,
+        date: payload.date,
+        status: 'Sent',
+        itemsCount: 1,
+      };
+      setDocuments([fallbackDoc, ...documents]);
+      setShowBuilder(false);
+      setPreviewDoc(fallbackDoc);
+    }
   };
 
   const handleOpenWhatsApp = (doc: DocumentRecord) => {
@@ -228,6 +331,24 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ currentOrg, is
                       <Eye className="w-3.5 h-3.5" />
                     </button>
                     <button
+                      onClick={() => downloadPDF({
+                        title: doc.type,
+                        documentNumber: doc.docNumber,
+                        date: doc.date,
+                        organizationName: currentOrg?.name || 'BusinessOS AI Tenant',
+                        organizationGstin: currentOrg?.gstin,
+                        clientName: doc.clientName,
+                        totalAmount: doc.amount,
+                        grandTotal: doc.amount,
+                        status: doc.status,
+                        items: [{ description: `${doc.type} Services/Goods`, quantity: 1, unitPrice: doc.amount, amount: doc.amount }]
+                      })}
+                      className="p-1.5 rounded-lg bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white transition-colors"
+                      title="Download PDF Document"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                    <button
                       onClick={() => handleOpenWhatsApp(doc)}
                       className="p-1.5 rounded-lg bg-green-600/10 hover:bg-green-600 text-green-400 hover:text-white transition-colors"
                       title="Send via WhatsApp"
@@ -289,11 +410,23 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ currentOrg, is
                 />
               </div>
 
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-neutral-400">Attach Document File (Optional - PDF/Image/Doc)</label>
+                <input
+                  type="file"
+                  onChange={handleFileUpload}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2 text-xs text-neutral-300 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
+                />
+                {uploadedFile && (
+                  <p className="text-[11px] text-emerald-400 font-medium">Attached: {uploadedFile.name} ({(uploadedFile.size / 1024).toFixed(1)} KB)</p>
+                )}
+              </div>
+
               <button
                 type="submit"
                 className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md shadow-blue-600/20"
               >
-                Generate & Save Document
+                Generate & Save Document to Database
               </button>
             </form>
           </div>
@@ -370,26 +503,38 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({ currentOrg, is
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => window.print()}
+                  onClick={() => downloadPDF({
+                    title: previewDoc.type,
+                    documentNumber: previewDoc.docNumber,
+                    date: previewDoc.date,
+                    organizationName: currentOrg?.name || 'BusinessOS AI Tenant',
+                    organizationGstin: currentOrg?.gstin,
+                    clientName: previewDoc.clientName,
+                    totalAmount: previewDoc.amount,
+                    grandTotal: previewDoc.amount,
+                    status: previewDoc.status,
+                    items: [{ description: `${previewDoc.type} Item / Charge`, quantity: 1, unitPrice: previewDoc.amount, amount: previewDoc.amount }]
+                  })}
                   className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md"
                 >
-                  <Printer className="w-4 h-4" /> Print Document
+                  <Download className="w-4 h-4" /> Download PDF
                 </button>
                 <button
-                  onClick={() => {
-                    if (navigator.share) {
-                      navigator.share({
-                        title: `${previewDoc.type} ${previewDoc.docNumber}`,
-                        text: `Invoice ${previewDoc.docNumber} for ${previewDoc.clientName} - Amount: ₹${previewDoc.amount}`,
-                        url: window.location.href
-                      }).catch(() => {});
-                    } else {
-                      alert('Document URL copied to clipboard!');
-                    }
-                  }}
-                  className="px-3 py-2 bg-neutral-900 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5"
+                  onClick={() => sharePDFWhatsApp({
+                    title: previewDoc.type,
+                    documentNumber: previewDoc.docNumber,
+                    date: previewDoc.date,
+                    organizationName: currentOrg?.name || 'BusinessOS AI Tenant',
+                    organizationGstin: currentOrg?.gstin,
+                    clientName: previewDoc.clientName,
+                    totalAmount: previewDoc.amount,
+                    grandTotal: previewDoc.amount,
+                    status: previewDoc.status,
+                    items: [{ description: `${previewDoc.type} Item / Charge`, quantity: 1, unitPrice: previewDoc.amount, amount: previewDoc.amount }]
+                  })}
+                  className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-emerald-600/20"
                 >
-                  <Share2 className="w-4 h-4" /> Share
+                  <Share2 className="w-4 h-4" /> Share PDF
                 </button>
                 <button
                   onClick={() => setPreviewDoc(null)}

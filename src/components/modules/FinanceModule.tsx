@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Landmark, FileSpreadsheet } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Landmark, FileSpreadsheet, Download } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { ExpenseRecord } from '../../types';
 import { mockExpenses } from '../../data/mockData';
@@ -41,6 +41,28 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({ isDarkMode }) => {
     setShowAddExpense(false);
   };
 
+  const handleExportCSV = () => {
+    const headers = ['Category', 'Description', 'Date', 'Paid By', 'Payment Mode', 'Amount (INR)'];
+    const rows = expenses.map(ex => [
+      `"${(ex.category || '').replace(/"/g, '""')}"`,
+      `"${(ex.description || '').replace(/"/g, '""')}"`,
+      `"${ex.date || ''}"`,
+      `"${(ex.paidBy || '').replace(/"/g, '""')}"`,
+      `"${(ex.paymentMode || '').replace(/"/g, '""')}"`,
+      ex.amount || 0
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `financial_expenses_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn">
       
@@ -53,13 +75,26 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({ isDarkMode }) => {
           <p className="text-xs text-neutral-400">Cash flow analytics, expense tracking, bank accounts & GST liability reports.</p>
         </div>
 
-        <button
-          onClick={() => setShowAddExpense(true)}
-          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-blue-600/20"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Log New Expense</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCSV}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors border ${
+              isDarkMode 
+                ? 'bg-neutral-800 hover:bg-neutral-700 border-neutral-700 text-emerald-400' 
+                : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700'
+            }`}
+          >
+            <Download className="w-4 h-4" />
+            <span>Export CSV Report</span>
+          </button>
+          <button
+            onClick={() => setShowAddExpense(true)}
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-blue-600/20"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Log New Expense</span>
+          </button>
+        </div>
       </div>
 
       {/* Financial KPI Cards */}
@@ -136,8 +171,17 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({ isDarkMode }) => {
       <div className={`rounded-2xl border overflow-hidden ${
         isDarkMode ? 'bg-neutral-900 border-neutral-800' : 'bg-white border-neutral-200 shadow-sm'
       }`}>
-        <div className="p-4 border-b border-neutral-800 font-bold text-xs uppercase tracking-wider text-neutral-400">
-          Expense Records
+        <div className="p-4 border-b border-neutral-800 flex items-center justify-between">
+          <span className="font-bold text-xs uppercase tracking-wider text-neutral-400">
+            Expense Records ({expenses.length})
+          </span>
+          <button
+            onClick={handleExportCSV}
+            className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Download CSV</span>
+          </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-neutral-200 min-w-[500px]">

@@ -8,9 +8,11 @@ import { UpgradeModal } from './components/UpgradeModal';
 import { AuthViews } from './components/auth/AuthViews';
 
 import { DashboardModule } from './components/modules/DashboardModule';
+import { CaModule } from './components/modules/CaModule';
 import { PosModule } from './components/modules/PosModule';
 import { DocumentsModule } from './components/modules/DocumentsModule';
 import { WhatsAppModule } from './components/modules/WhatsAppModule';
+import { GmailModule } from './components/modules/GmailModule';
 import { CrmModule } from './components/modules/CrmModule';
 import { HrModule } from './components/modules/HrModule';
 import { InventoryModule } from './components/modules/InventoryModule';
@@ -23,6 +25,24 @@ import { SuperAdminModule } from './components/modules/SuperAdminModule';
 
 import { ModuleType, Organization, Branch, UserRole, BusinessType, PlanType, AuthState } from './types';
 import { mockOrganizations, mockBranches } from './data/mockData';
+import { checkModulePermission } from './utils/permissions';
+import { Lock, Zap } from 'lucide-react';
+
+export const SUPER_ADMIN_ORG: Organization = {
+  id: 'ORG-SUPER',
+  name: 'BusinessOS AI',
+  ownerName: 'Platform Super Admin',
+  email: 'admin@businessos.ai',
+  phone: '+91 9028310199',
+  whatsappNumber: '+91 9028310199',
+  address: 'BusinessOS AI Platform Owner HQ',
+  plan: 'Enterprise',
+  businessType: 'SaaS Platform',
+  companySize: 'Enterprise',
+  status: 'Active',
+  primaryColor: '#2563eb',
+  secondaryColor: '#1d4ed8',
+};
 
 export default function App() {
   const [authState, setAuthState] = useState<AuthState>(() => {
@@ -53,7 +73,7 @@ export default function App() {
     setAuthState('landing');
   };
 
-  // Fetch organizations from PostgreSQL on load
+  // Fetch organizations from PostgreSQL on load (filtered for customers, SuperAdmin locked to BusinessOS AI)
   useEffect(() => {
     if (authState !== 'app') return;
     const token = localStorage.getItem('businessos_token');
@@ -61,14 +81,43 @@ export default function App() {
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     fetch('/api/tenant/organizations', { headers })
-      .then(res => res.json())
+      .then(async res => {
+        if (!res.ok) return null;
+        const contentType = res.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          return res.json();
+        }
+        return null;
+      })
       .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
-          setOrganizations(data);
+        if (data && Array.isArray(data) && data.length > 0) {
+          // Filter out platform admin org from customer org list
+          const customerOnlyOrgs = data.filter((o: Organization) => o.id !== 'ORG-SUPER' && o.id !== 'ORG-SYSTEM' && o.name !== 'BusinessOS AI');
+          setOrganizations(customerOnlyOrgs);
+
+          if (activeRole === 'Super Admin') {
+            setCurrentOrg(SUPER_ADMIN_ORG);
+          } else if (!currentOrg || currentOrg.id === 'ORG-SUPER' || currentOrg.id === 'ORG-SYSTEM') {
+            if (customerOnlyOrgs.length > 0) setCurrentOrg(customerOnlyOrgs[0]);
+          }
         }
       })
       .catch(err => console.error('Error fetching tenant orgs:', err));
   }, [authState]);
+
+  // Keep Super Admin locked to BusinessOS AI Platform Org
+  useEffect(() => {
+    if (activeRole === 'Super Admin') {
+      setCurrentOrg(SUPER_ADMIN_ORG);
+      setBusinessType('SaaS Platform');
+      setActiveModule('superadmin');
+    } else if (currentOrg?.id === 'ORG-SUPER' || currentOrg?.id === 'ORG-SYSTEM') {
+      const firstCustomerOrg = organizations.find(o => o.id !== 'ORG-SUPER' && o.id !== 'ORG-SYSTEM') || mockOrganizations[0];
+      setCurrentOrg(firstCustomerOrg);
+      setBusinessType(firstCustomerOrg.businessType);
+      if (activeModule === 'superadmin') setActiveModule('dashboard');
+    }
+  }, [activeRole]);
 
   // Keyboard shortcut Cmd+K for AI Palette
   useEffect(() => {
@@ -83,12 +132,14 @@ export default function App() {
   }, []);
 
   const handleUpdateOrgName = (newName: string) => {
+    if (!currentOrg) return;
     const updated = { ...currentOrg, name: newName };
     setCurrentOrg(updated);
     setOrganizations(prev => prev.map(o => o.id === updated.id ? updated : o));
   };
 
   const handleUpgradePlan = (newPlan: PlanType) => {
+    if (!currentOrg) return;
     const updated = { ...currentOrg, plan: newPlan };
     setCurrentOrg(updated);
     setOrganizations(prev => prev.map(o => o.id === updated.id ? updated : o));
@@ -104,18 +155,20 @@ export default function App() {
 
   const handleUpdateOrgStatus = (orgId: string, newPlan: PlanType) => {
     setOrganizations(prev => prev.map(o => o.id === orgId ? { ...o, plan: newPlan } : o));
-    if (currentOrg.id === orgId) {
+    if (currentOrg?.id === orgId) {
       setCurrentOrg(prev => ({ ...prev, plan: newPlan }));
     }
   };
 
   const handleLoginSuccess = (org: Organization, role: UserRole, bt: BusinessType) => {
-    setCurrentOrg(org);
     setActiveRole(role);
-    setBusinessType(bt);
     if (role === 'Super Admin') {
+      setCurrentOrg(SUPER_ADMIN_ORG);
+      setBusinessType('SaaS Platform');
       setActiveModule('superadmin');
     } else {
+      setCurrentOrg(org);
+      setBusinessType(bt);
       setActiveModule('dashboard');
     }
     setAuthState('app');
@@ -172,8 +225,8 @@ export default function App() {
         onSelectRole={handleRoleChange}
         businessType={businessType}
         onChangeBusinessType={(bt) => setBusinessType(bt)}
-        companySize={currentOrg.companySize || 'Medium'}
-        onChangeCompanySize={(size) => setCurrentOrg({ ...currentOrg, companySize: size })}
+        companySize={currentOrg?.companySize || 'Medium'}
+        onChangeCompanySize={(size) => currentOrg && setCurrentOrg({ ...currentOrg, companySize: size })}
         onOpenAiCommand={() => setShowAiCommand(true)}
         onOpenUpgradeModal={() => setShowUpgradeModal(true)}
         isDarkMode={isDarkMode}
@@ -192,7 +245,7 @@ export default function App() {
           onSelectModule={(mod) => setActiveModule(mod)}
           businessType={businessType}
           activeRole={activeRole}
-          plan={currentOrg.plan}
+          plan={currentOrg?.plan || 'Free'}
           isDarkMode={isDarkMode}
           onOpenAiCommand={() => setShowAiCommand(true)}
         />
@@ -200,75 +253,128 @@ export default function App() {
         {/* Right Active Module Viewport */}
         <main className="flex-1 p-3 sm:p-6 pb-20 md:pb-6 overflow-y-auto min-w-0">
           
-          {activeModule === 'superadmin' && (
-            <SuperAdminModule
-              organizations={organizations}
-              onAddOrganization={handleAddOrganization}
-              onUpdateOrgStatus={handleUpdateOrgStatus}
-              isDarkMode={isDarkMode}
-            />
-          )}
+          {(() => {
+            const perm = checkModulePermission(currentOrg, activeRole, activeModule);
 
-          {activeModule === 'dashboard' && (
-            <DashboardModule
-              currentOrg={currentOrg}
-              currentBranch={currentBranch}
-              businessType={businessType}
-              activeRole={activeRole}
-              companySize={currentOrg.companySize || 'Medium'}
-              onNavigateModule={(mod) => setActiveModule(mod)}
-              isDarkMode={isDarkMode}
-            />
-          )}
+            if (!perm.allowed) {
+              return (
+                <div className={`p-8 rounded-2xl border text-center max-w-xl mx-auto my-12 space-y-5 shadow-2xl ${
+                  isDarkMode ? 'bg-neutral-900/90 border-neutral-800 text-neutral-100' : 'bg-white border-neutral-200 text-neutral-900'
+                }`}>
+                  <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto shadow-inner">
+                    <Lock className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <h2 className="text-xl font-bold">Paid Subscription Required</h2>
+                    <p className="text-xs text-neutral-400 max-w-md mx-auto leading-relaxed">
+                      {perm.message}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-mono">
+                    Current Organization Plan: <span className="font-bold uppercase tracking-wider">{currentOrg?.plan || 'Free'}</span>
+                  </div>
+                  <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <button
+                      onClick={() => setShowUpgradeModal(true)}
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-500/20 hover:brightness-110 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Zap className="w-4 h-4 fill-current" />
+                      <span>Upgrade to Paid Subscription</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveModule('dashboard')}
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold text-xs transition-colors"
+                    >
+                      Back to Dashboard
+                    </button>
+                  </div>
+                </div>
+              );
+            }
 
-          {activeModule === 'pos' && (
-            <PosModule isDarkMode={isDarkMode} />
-          )}
+            return (
+              <>
+                {activeModule === 'superadmin' && (
+                  <SuperAdminModule
+                    organizations={organizations}
+                    onAddOrganization={handleAddOrganization}
+                    onUpdateOrgStatus={handleUpdateOrgStatus}
+                    isDarkMode={isDarkMode}
+                  />
+                )}
 
-          {activeModule === 'documents' && (
-            <DocumentsModule currentOrg={currentOrg} isDarkMode={isDarkMode} />
-          )}
+                {activeModule === 'dashboard' && (
+                  <DashboardModule
+                    currentOrg={currentOrg}
+                    currentBranch={currentBranch}
+                    businessType={businessType}
+                    activeRole={activeRole}
+                    companySize={currentOrg?.companySize || 'Medium'}
+                    onNavigateModule={(mod) => setActiveModule(mod)}
+                    isDarkMode={isDarkMode}
+                  />
+                )}
 
-          {activeModule === 'whatsapp' && (
-            <WhatsAppModule isDarkMode={isDarkMode} />
-          )}
+                {activeModule === 'ca' && (
+                  <CaModule currentOrg={currentOrg} isDarkMode={isDarkMode} />
+                )}
 
-          {activeModule === 'crm' && (
-            <CrmModule currentOrg={currentOrg} isDarkMode={isDarkMode} />
-          )}
+                {activeModule === 'pos' && (
+                  <PosModule isDarkMode={isDarkMode} />
+                )}
 
-          {activeModule === 'hr' && (
-            <HrModule currentOrg={currentOrg} isDarkMode={isDarkMode} />
-          )}
+                {activeModule === 'documents' && (
+                  <DocumentsModule currentOrg={currentOrg} isDarkMode={isDarkMode} />
+                )}
 
-          {activeModule === 'inventory' && (
-            <InventoryModule currentOrg={currentOrg} isDarkMode={isDarkMode} />
-          )}
+                {activeModule === 'whatsapp' && (
+                  <WhatsAppModule isDarkMode={isDarkMode} />
+                )}
 
-          {activeModule === 'finance' && (
-            <FinanceModule isDarkMode={isDarkMode} />
-          )}
+                {activeModule === 'gmail' && (
+                  <GmailModule currentOrg={currentOrg} isDarkMode={isDarkMode} />
+                )}
 
-          {activeModule === 'projects' && (
-            <ProjectsModule isDarkMode={isDarkMode} />
-          )}
+                {activeModule === 'crm' && (
+                  <CrmModule currentOrg={currentOrg} isDarkMode={isDarkMode} />
+                )}
 
-          {activeModule === 'support' && (
-            <SupportModule isDarkMode={isDarkMode} />
-          )}
+                {activeModule === 'hr' && (
+                  <HrModule currentOrg={currentOrg} isDarkMode={isDarkMode} />
+                )}
 
-          {activeModule === 'reports' && (
-            <ReportsModule isDarkMode={isDarkMode} />
-          )}
+                {activeModule === 'inventory' && (
+                  <InventoryModule currentOrg={currentOrg} isDarkMode={isDarkMode} />
+                )}
 
-          {activeModule === 'settings' && (
-            <SettingsModule
-              currentOrg={currentOrg}
-              onUpdateOrgName={handleUpdateOrgName}
-              onOpenUpgradeModal={() => setShowUpgradeModal(true)}
-              isDarkMode={isDarkMode}
-            />
-          )}
+                {activeModule === 'finance' && (
+                  <FinanceModule isDarkMode={isDarkMode} />
+                )}
+
+                {activeModule === 'projects' && (
+                  <ProjectsModule isDarkMode={isDarkMode} />
+                )}
+
+                {activeModule === 'support' && (
+                  <SupportModule isDarkMode={isDarkMode} />
+                )}
+
+                {activeModule === 'reports' && (
+                  <ReportsModule isDarkMode={isDarkMode} />
+                )}
+
+                {activeModule === 'settings' && (
+                  <SettingsModule
+                    currentOrg={currentOrg}
+                    activeRole={activeRole}
+                    onUpdateOrgName={handleUpdateOrgName}
+                    onOpenUpgradeModal={() => setShowUpgradeModal(true)}
+                    isDarkMode={isDarkMode}
+                  />
+                )}
+              </>
+            );
+          })()}
         </main>
 
       </div>
@@ -301,6 +407,7 @@ export default function App() {
         onSelectModule={(mod) => setActiveModule(mod)}
         onOpenMobileDrawer={() => setIsMobileDrawerOpen(true)}
         isDarkMode={isDarkMode}
+        activeRole={activeRole}
       />
 
       {/* AI OS Command Palette Overlay */}

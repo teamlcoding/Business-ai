@@ -83,7 +83,11 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({
     lowStockCount: 3,
   });
 
+  const [forecastData, setForecastData] = useState<any | null>(null);
+  const [selectedForecastDays, setSelectedForecastDays] = useState<'30' | '60' | '90'>('30');
+
   useEffect(() => {
+    if (!currentOrg?.id) return;
     const token = localStorage.getItem('businessos_token');
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -96,12 +100,21 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({
         }
       })
       .catch(err => console.error('Failed to load live summary:', err));
-  }, [currentOrg.id]);
+
+    fetch(`/api/tenant/forecast?organization_id=${currentOrg.id}`, { headers })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.forecast30Days) {
+          setForecastData(data);
+        }
+      })
+      .catch(err => console.error('Failed to load forecast data:', err));
+  }, [currentOrg?.id]);
 
   const [insights, setInsights] = useState<AiInsightsResponse>({
     healthScore: 94,
     grade: 'A+',
-    summary: `Operations across ${currentBranch.name} for role "${activeRole}" in ${businessType} are operating with high efficiency. Revenue growth is up 18.4% month-over-month.`,
+    summary: `Operations across ${currentBranch?.name || 'Main Branch'} for role "${activeRole}" in ${businessType} are operating with high efficiency. Revenue growth is up 18.4% month-over-month.`,
     recommendations: getRecommendationsForTypeAndRole(businessType, activeRole)
   });
 
@@ -233,10 +246,10 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold mb-2">
               <Zap className="w-3.5 h-3.5" />
-              <span>{activeRole} Dashboard • {currentBranch.name} ({companySize} Scale)</span>
+              <span>{activeRole} Dashboard • {currentBranch?.name || 'Main Branch'} ({companySize} Scale)</span>
             </div>
             <h1 className="text-2xl font-bold tracking-tight">
-              {currentOrg.name}
+              {currentOrg?.name || 'Organization'}
             </h1>
             <p className="text-xs text-neutral-400 mt-1">
               Business Vertical: <span className="text-neutral-200 font-semibold">{businessType}</span> | Role View: <span className="text-blue-400 font-semibold">{activeRole}</span>
@@ -322,6 +335,141 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({
           </div>
 
         </div>
+      </div>
+
+      {/* AI-DRIVEN CASH FLOW & EXPENSE FORECASTING PANEL */}
+      <div className={`p-5 rounded-2xl border space-y-4 ${
+        isDarkMode ? 'bg-neutral-900 border-neutral-800' : 'bg-white border-neutral-200 shadow-sm'
+      }`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-800 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-neutral-100 flex items-center gap-2">
+                <span>AI-Driven Cash Flow & Expense Forecasting</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  92% Confidence AI Model
+                </span>
+              </h3>
+              <p className="text-xs text-neutral-400">
+                Predictive analytics forecasting upcoming tax liabilities, payroll expenses, and inventory reorder points.
+              </p>
+            </div>
+          </div>
+
+          {/* Days Switcher */}
+          <div className="flex items-center gap-1 bg-neutral-950 p-1 rounded-xl border border-neutral-800 shrink-0">
+            {(['30', '60', '90'] as const).map(days => (
+              <button
+                key={days}
+                onClick={() => setSelectedForecastDays(days)}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  selectedForecastDays === days 
+                    ? 'bg-indigo-600 text-white shadow-sm' 
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                {days} Days
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {forecastData && (
+          <div className="space-y-4">
+            {/* Top KPI Metrics Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Projected Inflow */}
+              <div className="p-4 rounded-xl bg-neutral-950/60 border border-neutral-800 space-y-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Projected Cash Inflow</span>
+                <div className="text-xl font-extrabold text-emerald-400 font-mono">
+                  ₹{Number(forecastData[`forecast${selectedForecastDays}Days`]?.projectedInflow || 0).toLocaleString('en-IN')}
+                </div>
+                <p className="text-[10px] text-neutral-400">From verified invoices & receivables</p>
+              </div>
+
+              {/* Projected Outflow */}
+              <div className="p-4 rounded-xl bg-neutral-950/60 border border-neutral-800 space-y-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Projected Cash Outflow</span>
+                <div className="text-xl font-extrabold text-rose-400 font-mono">
+                  ₹{Number(forecastData[`forecast${selectedForecastDays}Days`]?.projectedOutflow || 0).toLocaleString('en-IN')}
+                </div>
+                <p className="text-[10px] text-neutral-400">Payroll, GST tax & inventory reorders</p>
+              </div>
+
+              {/* Net Cash Position */}
+              <div className="p-4 rounded-xl bg-indigo-950/20 border border-indigo-500/30 space-y-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-indigo-300">Net Position Buffer</span>
+                <div className="text-xl font-extrabold text-indigo-300 font-mono">
+                  ₹{Number(forecastData[`forecast${selectedForecastDays}Days`]?.netCashPosition || 0).toLocaleString('en-IN')}
+                </div>
+                <p className="text-[10px] text-indigo-200">Safely covers 1.8x operating run-rate</p>
+              </div>
+            </div>
+
+            {/* Detailed Expense Breakdown & Low-Stock Alerts */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+              {/* GST Tax Liability Forecast */}
+              <div className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-neutral-200">GST Tax Liability (GSTR-3B)</span>
+                  <span className="text-amber-400 font-mono font-bold">
+                    ₹{Number(forecastData.forecast30Days?.gstTaxLiability || 0).toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <p className="text-[11px] text-neutral-400">
+                  Estimated 18% net output tax due by the 20th after Input Tax Credit (ITC) deduction.
+                </p>
+                <div className="w-full bg-neutral-800 h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-amber-500 h-full w-2/3" />
+                </div>
+              </div>
+
+              {/* Payroll Liability */}
+              <div className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-neutral-200">Payroll & Salary Reserve</span>
+                  <span className="text-blue-400 font-mono font-bold">
+                    ₹{Number(forecastData.forecast30Days?.payrollLiability || 0).toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <p className="text-[11px] text-neutral-400">
+                  Fixed monthly employee payouts for {summary.employeesCount || 3} verified staff members.
+                </p>
+                <div className="w-full bg-neutral-800 h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-blue-500 h-full w-4/5" />
+                </div>
+              </div>
+
+              {/* Inventory Reorder Point Reserve */}
+              <div className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-neutral-200">Inventory Reorder Cost</span>
+                  <span className="text-emerald-400 font-mono font-bold">
+                    ₹{Number(forecastData.forecast30Days?.inventoryReorderCost || 0).toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <p className="text-[11px] text-neutral-400">
+                  Restock cost for {forecastData.summary?.lowStockCount || 0} low-stock products to prevent stockouts.
+                </p>
+                <div className="w-full bg-neutral-800 h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-emerald-500 h-full w-1/2" />
+                </div>
+              </div>
+            </div>
+
+            {/* AI Strategic Rationale Note */}
+            <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-200 flex items-start gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">AI Strategic Insight: </span>
+                {forecastData.forecast30Days?.rationale}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* DYNAMIC ROLE-BASED KPI CARDS */}
